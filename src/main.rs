@@ -1,3 +1,5 @@
+mod keyboard;
+
 use std::{
     fs::{self, File},
     io::{self, Write},
@@ -10,7 +12,12 @@ use nix::{
     unistd::isatty,
 };
 
-pub fn configuration(tty: &File) -> Result<Termios, io::Error> {
+pub struct Term {
+    output: File,
+    conf: Termios,
+}
+
+pub fn configuration(tty: File) -> Result<Term, io::Error> {
     let is_tty = isatty(tty.as_raw_fd()).expect("not atty");
     if !is_tty {
         return Err(io::Error::from(Errno::ENOTTY));
@@ -20,7 +27,7 @@ pub fn configuration(tty: &File) -> Result<Termios, io::Error> {
     cfmakeraw(&mut conf);
     conf.output_flags |= OutputFlags::OPOST;
     tcsetattr(tty.as_raw_fd(), SetArg::TCSANOW, &conf).unwrap();
-    return Ok(conf);
+    return Ok(Term { output: tty, conf });
 }
 
 fn main() {
@@ -31,4 +38,10 @@ fn main() {
         .expect("cannot open tty");
     let is_tty = isatty(tty.as_raw_fd()).expect("not atty");
     println!("is tty {}", is_tty);
+
+    let mut term = configuration(tty).unwrap();
+    let _ = term
+        .output
+        .write_fmt(format_args!("Hello current terminal"))
+        .unwrap();
 }
